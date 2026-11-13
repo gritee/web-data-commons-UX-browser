@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WDC Subset Browser</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f27; --muted: #667085; --line: #e3e6ec;
+  --accent: #2456d6; --accent-ink: #ffffff; --soft: #eef2fd; --ok: #1a7f4b; --bad: #c0362c; --warn: #a15c00;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #12141a; --panel: #1a1d25; --ink: #e7e9ee; --muted: #98a1b3; --line: #2b303b;
+    --accent: #7ba0ff; --accent-ink: #0d1220; --soft: #222a40; --ok: #5ccf94; --bad: #ff8076; --warn: #f0b458; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 14px 24px 10px; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 17px; margin: 0 0 10px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+header h1 small { font-weight: 400; color: var(--muted); font-size: 13px; }
+.years { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pill { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 3px 11px; cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; }
+.pill:hover { border-color: var(--accent); }
+.pill.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+main { padding: 18px 24px 120px; max-width: 1500px; margin: 0 auto; }
+.bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.bar h2 { font-size: 16px; margin: 0; }
+.grow { flex: 1; }
+.muted { color: var(--muted); } .small { font-size: 12px; }
+input[type=text], input[type=number], input[type=search] { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; }
+input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; padding: 5px 11px; cursor: pointer; white-space: nowrap; }
+button.btn:hover { border-color: var(--accent); }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.btn:disabled { opacity: .5; cursor: default; }
+.tablewrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; white-space: nowrap; user-select: none; }
+thead th.sort { cursor: pointer; } thead th.sort:hover { color: var(--ink); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tbody tr:hover { background: var(--soft); }
+.name { font-weight: 600; } .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--muted); margin-left: 6px; font-weight: 400; }
+.rel { color: var(--muted); font-size: 12px; max-width: 380px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.crumbs { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.state { padding: 40px; text-align: center; color: var(--muted); }
+.state.err { color: var(--bad); }
+.mono { font-family: var(--mono); font-size: 12px; }
+
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); padding: 0; width: min(640px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(10, 14, 25, .5); }
+dialog form { padding: 20px 22px; display: grid; gap: 14px; }
+dialog h3 { margin: 0; font-size: 16px; }
+.field { display: grid; gap: 4px; } .field > label, .field > span.l { font-weight: 600; font-size: 13px; }
+.field input[type=text], .field input[type=number] { width: 100%; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.choice { display: flex; gap: 16px; flex-wrap: wrap; } .choice label { font-weight: 400; display: flex; gap: 6px; align-items: center; }
+.src { font-family: var(--mono); font-size: 12px; background: var(--bg); border-radius: 6px; padding: 7px 9px; word-break: break-all; }
+.dlgbtns { display: flex; justify-content: flex-end; gap: 8px; }
+.formerr { color: var(--bad); }
+
+#jobs { position: fixed; right: 16px; bottom: 16px; width: min(460px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.18); z-index: 10; max-height: 70vh; display: flex; flex-direction: column; }
+#jobs[hidden] { display: none; }
+#jobs > .jh { padding: 9px 14px; font-weight: 600; display: flex; justify-content: space-between; cursor: pointer; border-bottom: 1px solid var(--line); }
+#jobs.min > .jl { display: none; } #jobs.min > .jh { border-bottom: 0; }
+.jl { overflow-y: auto; }
+.job { padding: 11px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 5px; } .job:last-child { border-bottom: 0; }
+.job .t { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.job .p { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; } .job .p > i { display: block; height: 100%; background: var(--accent); }
+.job .path { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+.s-done { color: var(--ok); } .s-error { color: var(--bad); } .s-cancelled { color: var(--warn); }
+@media (max-width: 700px) { header, main { padding-left: 14px; padding-right: 14px; } .row2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Web Data Commons <span>schema.org subsets</span> <small>browse releases, list subset files, convert quads to CSV / JSON</small></h1>
+  <div class="years" id="years"><span class="muted">Loading releases…</span></div>
+</header>
+<main id="main"></main>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <h3>Download, extract &amp; convert</h3>
+    <div class="field"><span class="l">Source file</span><div class="src" id="f-src"></div></div>
+    <div class="row2">
+      <div class="field"><label for="f-type">Entity type (schema.org class)</label>
+        <input type="text" id="f-type" autocomplete="off">
+        <span class="muted small">One output item per entity of this class. Leave empty for every top-level entity.</span></div>
+      <div class="field"><label for="f-limit">Maximum items</label>
+        <input type="number" id="f-limit" min="0" step="1" value="1000">
+        <span class="muted small">0 = whole file. With a limit, the download stops as soon as enough items are found.</span></div>
+    </div>
+    <div class="field"><span class="l">Output format</span>
+      <div class="choice">
+        <label><input type="radio" name="fmt" value="csv" checked> CSV (one flattened row per item)</label>
+        <label><input type="radio" name="fmt" value="json"> JSON (array of nested objects)</label>
+      </div></div>
+    <div class="field"><label for="f-out">Output file path</label>
+      <input type="text" id="f-out" autocomplete="off" spellcheck="false">
+      <span class="muted small">Defaults to your Downloads folder. A folder path is also accepted.</span></div>
+    <div class="field"><span class="l">Options</span>
+      <div class="choice">
+        <label id="l-jsoncol"><input type="checkbox" id="f-jsoncol" checked> Add full <code>json</code> column to CSV</label>
+        <label><input type="checkbox" id="f-keepgz"> Keep the downloaded .gz</label>
+        <label><input type="checkbox" id="f-keepnq"> Keep the extracted .nq</label>
+      </div>
+      <span class="muted small" id="keepnote" hidden>Keeping a file means the whole file is downloaded / extracted even when the item limit is reached early. Extracted quads are roughly 10× the .gz size.</span></div>
+    <div class="formerr" id="f-err" hidden></div>
+    <div class="dlgbtns">
+      <button type="button" class="btn" id="f-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="f-go">Start</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="jobs" hidden><div class="jh"><span id="jobs-title">Conversions</span><span class="muted" id="jobs-toggle">hide</span></div><div class="jl" id="jobs-list"></div></div>
+
+<script>
+"use strict";
+const TOKEN = "__WDC_TOKEN__";
+const $ = id => document.getElementById(id);
+const main = $("main");
+
+// h("td", {class:"num"}, "text", childNode) - remote text is always inserted as text, never HTML
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, "");
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  return fill(el, kids);
+}
+function fill(el, ...kids) {   // replace children; accepts nested arrays, skips null/false
+  el.replaceChildren(...kids.flat(Infinity).filter(k => k != null && k !== false));
+  return el;
+}
+async function api(path, body) {
+  const opt = { headers: { "X-WDC-Token": TOKEN } };
+  if (body) { opt.method = "POST"; opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  let res;
+  try { res = await fetch(path, opt); }
+  catch { throw new Error("The local server is not responding. Start it with:  python3 wdc_browser.py"); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok && res.status !== 409) throw new Error(data.error || "HTTP " + res.status);
+  data._status = res.status;
+  return data;
+}
+const fmtN = n => n == null ? "–" : n.toLocaleString("en-US");
+const fmtBytes = b => { if (!b) return "0 B"; const u = ["B","KB","MB","GB","TB"]; const i = Math.min(4, Math.floor(Math.log(b) / Math.log(1024))); return (b / 1024 ** i).toFixed(i ? 1 : 0) + " " + u[i]; };
+const compact = n => new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+const natural = new Intl.Collator("en", { numeric: true, sensitivity: "base" }).compare;
+const state = (msg, err) => fill(main, h("div", { class: "state" + (err ? " err" : "") }, msg));
+
+let YEARS = [], DEFAULTS = { downloads: "", sep: "/" };
+const subsetCache = {};
+let view = { sort: "name", dir: 1, q: "" };
+
+// ------------------------------------------------------------------ routing
+// #/y/<year>                       subsets of a release
+// #/y/<year>/f?u=<dir url>&n=Type  files of a subset
+function parseRoute() {
+  const [path, qs] = location.hash.replace(/^#\/?/, "").split("?");
+  const seg = path.split("/").filter(Boolean);
+  const q = new URLSearchParams(qs || "");
+  return { year: seg[0] === "y" ? seg[1] : null, files: seg[2] === "f", url: q.get("u"), name: q.get("n") || "" };
+}
+const filesHash = (year, url, name) => `#/y/${year}/f?u=${encodeURIComponent(url)}&n=${encodeURIComponent(name)}`;
+
+async function route() {
+  const r = parseRoute();
+  if (!YEARS.length) return;
+  if (!r.year || !YEARS.some(y => y.year === r.year)) { location.replace("#/y/" + YEARS[0].year); return; }
+  renderYears(r.year);
+  try {
+    if (r.files && r.url) await showFiles(r); else await showSubsets(r.year);
+  } catch (e) { state(e.message, true); }
+}
+function renderYears(active) {
+  fill($("years"), 
+    h("span", { class: "muted small" }, "Release"),
+    YEARS.map(y => h("button", { class: "pill" + (y.year === active ? " on" : ""), title: y.subsets + " subsets", onclick: () => location.hash = "#/y/" + y.year }, y.year)),
+    h("button", { class: "pill", title: "Re-check webdatacommons.org for releases", onclick: () => boot(true) }, "↻"));
+}
+
+// ------------------------------------------------------------- subsets view
+async function showSubsets(year) {
+  if (!subsetCache[year]) { state("Loading " + year + " subsets…"); subsetCache[year] = await api("/api/subsets?year=" + year); }
+  if (parseRoute().year !== year) return;
+  const data = subsetCache[year];
+  const hostKey = data.subsets.some(s => "PLDs" in s.stats) ? "PLDs" : "Hosts";
+  const cols = [["name", "Subset"], ["Quads", "Quads", 1], ["URLs", "URLs", 1], [hostKey, hostKey, 1], ["size", "Size", 1]];
+  const val = (s, k) => k === "name" ? s.name : k === "size" ? s.size_bytes : (s.stats[k] || 0);
+
+  const tbody = h("tbody");
+  const count = h("span", { class: "muted" });
+  const headRow = h("tr");
+  function draw() {
+    fill(headRow, 
+      cols.map(([k, label, num]) => h("th", { class: "sort" + (num ? " num" : ""), onclick: () => { view.dir = view.sort === k ? -view.dir : (k === "name" ? 1 : -1); view.sort = k; draw(); } },
+        label + (view.sort === k ? (view.dir > 0 ? " ▲" : " ▼") : ""))),
+      h("th", {}, "Most frequent classes"), h("th", {}, "Files"));
+    const q = view.q.trim().toLowerCase();
+    const rows = data.subsets.filter(s => !q || s.name.toLowerCase().includes(q))
+      .sort((a, b) => { const x = val(a, view.sort), y = val(b, view.sort); return (typeof x === "string" ? natural(x, y) : x - y) * view.dir || natural(a.name, b.name); });
+    count.textContent = rows.length + " of " + data.subsets.length + " subsets";
+    fill(tbody, rows.map(s => h("tr", {},
+      h("td", { class: "name" }, h("a", { href: "https://schema.org/" + encodeURIComponent(s.name), target: "_blank", rel: "noopener" }, s.name), s.variant && h("span", { class: "tag" }, s.variant)),
+      h("td", { class: "num" }, fmtN(s.stats.Quads)), h("td", { class: "num" }, fmtN(s.stats.URLs)), h("td", { class: "num" }, fmtN(s.stats[hostKey])),
+      h("td", { class: "num" }, s.size, s.files != null && h("div", { class: "muted small" }, s.files + (s.files === 1 ? " file" : " files"))),
+      h("td", { class: "rel" }, s.related.map(r => r.cls.replace(/^https?:\/\/schema\.org\//, "") + " " + compact(r.count)).join(" · ")),
+      h("td", {}, h("div", { class: "actions" }, s.links.map(l =>
+        l.kind === "dir" ? h("button", { class: "btn primary", onclick: () => location.hash = filesHash(year, l.url, s.name) }, "Browse files")
+        : l.kind === "quads" ? h("button", { class: "btn primary", title: l.url, onclick: () => openConvert({ url: l.url, year, type: s.name }) }, "Convert " + l.label + "…")
+        : h("a", { href: l.url, target: "_blank", rel: "noopener", class: "small" }, l.label.replace(/_/g, " "))))))));
+    if (!rows.length) tbody.append(h("tr", {}, h("td", { colspan: "7", class: "muted" }, "No subset matches “" + view.q + "”.")));
+  }
+  const search = h("input", { type: "search", placeholder: "Filter subsets…", value: view.q, "aria-label": "Filter subsets", oninput: e => { view.q = e.target.value; draw(); } });
+  fill(main, 
+    h("div", { class: "bar" }, h("h2", {}, year + " class-specific subsets"), count, h("span", { class: "grow" }), search,
+      h("a", { href: data.page, target: "_blank", rel: "noopener", class: "small" }, "Original page ↗")),
+    h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, headRow), tbody)));
+  draw();
+}
+
+// --------------------------------------------------------------- files view
+async function showFiles(r) {
+  state("Loading file list…");
+  const data = await api("/api/files?url=" + encodeURIComponent(r.url));
+  const now = parseRoute();
+  if (now.url !== r.url) return;
+  const entries = data.entries.slice().sort((a, b) => (a.kind === "dir" ? 0 : 1) - (b.kind === "dir" ? 0 : 1) || (a.kind === "quads" ? 1 : 0) - (b.kind === "quads" ? 1 : 0) || natural(a.name, b.name));
+  const nq = entries.filter(e => e.kind === "quads").length;
+  fill(main, 
+    h("div", { class: "bar" },
+      h("button", { class: "btn", onclick: () => location.hash = "#/y/" + r.year }, "← " + r.year + " subsets"),
+      h("h2", {}, r.name || "Files"), h("span", { class: "muted" }, nq + " quad file" + (nq === 1 ? "" : "s") + ", " + (entries.length - nq) + " other"),
+      h("span", { class: "grow" }), h("a", { href: data.url, target: "_blank", rel: "noopener", class: "crumbs" }, data.url + " ↗")),
+    entries.length ? h("div", { class: "tablewrap" }, h("table", {},
+      h("thead", {}, h("tr", {}, h("th", {}, "File"), h("th", {}, "Modified"), h("th", { class: "num" }, "Size"), h("th", {}, ""))),
+      h("tbody", {}, entries.map(e => h("tr", {},
+        h("td", { class: "mono" }, e.kind === "dir" ? h("a", { href: filesHash(r.year, e.url, r.name) }, e.name) : e.name),
+        h("td", { class: "muted" }, e.date), h("td", { class: "num" }, e.size),
+        h("td", {}, h("div", { class: "actions" },
+          e.kind === "quads" ? h("button", { class: "btn primary", onclick: () => openConvert({ url: e.url, year: r.year, type: r.name }) }, "Convert…")
+          : e.kind === "dir" ? h("a", { href: filesHash(r.year, e.url, r.name) }, "Open folder")
+          : h("a", { href: e.url, target: "_blank", rel: "noopener" }, "Open ↗"),
+          e.kind === "quads" && h("a", { href: e.url, class: "small muted", title: "Plain browser download of the .gz" }, "raw .gz"))))))))
+    : h("div", { class: "state" }, "This folder is empty."));
+}
+
+// ----------------------------------------------------------- convert dialog
+let conv = null, outEdited = false;
+const fmtVal = () => document.querySelector("input[name=fmt]:checked").value;
+const defaultOut = () => DEFAULTS.downloads + DEFAULTS.sep + conv.stem + "." + fmtVal();
+function openConvert({ url, year, type }) {
+  const file = decodeURIComponent(url.split("/").pop()).replace(/(\.nq)?\.gz$/i, "");
+  const clean = s => s.replace(/[^\w.-]+/g, "_");
+  const stem = clean(["wdc", year, file.toLowerCase().includes(type.toLowerCase()) ? null : type, file].filter(Boolean).join("_"));
+  conv = { url, stem };
+  outEdited = false;
+  $("f-src").textContent = url;
+  $("f-type").value = type;
+  $("f-out").value = defaultOut();
+  $("f-err").hidden = true;
+  syncForm();
+  $("dlg").showModal();
+}
+function syncForm() {
+  if (!outEdited && conv) $("f-out").value = defaultOut();
+  else if (conv) $("f-out").value = $("f-out").value.replace(/\.(csv|json)$/i, "." + fmtVal());
+  $("l-jsoncol").hidden = fmtVal() !== "csv";
+  $("keepnote").hidden = !($("f-keepgz").checked || $("f-keepnq").checked);
+}
+document.querySelectorAll("input[name=fmt], #f-keepgz, #f-keepnq").forEach(el => el.addEventListener("change", syncForm));
+$("f-out").addEventListener("input", () => outEdited = true);
+$("f-cancel").addEventListener("click", () => $("dlg").close());
+$("form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const body = { url: conv.url, format: fmtVal(), limit: Math.max(0, parseInt($("f-limit").value, 10) || 0), type: $("f-type").value.trim(),
+    out: $("f-out").value.trim(), default_name: conv.stem, keep_gz: $("f-keepgz").checked, keep_nq: $("f-keepnq").checked, json_column: $("f-jsoncol").checked };
+  $("f-go").disabled = true; $("f-err").hidden = true;
+  try {
+    let res = await api("/api/convert", body);
+    if (res._status === 409) {
+      if (!confirm(res.out + "\n\nalready exists. Overwrite it?")) return;
+      res = await api("/api/convert", { ...body, overwrite: true });
+    }
+    $("dlg").close();
+    $("jobs").classList.remove("min");
+    pollJobs();
+  } catch (e) { $("f-err").textContent = e.message; $("f-err").hidden = false; }
+  finally { $("f-go").disabled = false; }
+});
+
+// --------------------------------------------------------------------- jobs
+let pollTimer = null;
+$("jobs").querySelector(".jh").addEventListener("click", () => { const m = $("jobs").classList.toggle("min"); $("jobs-toggle").textContent = m ? "show" : "hide"; });
+async function pollJobs() {
+  clearTimeout(pollTimer);
+  let jobs = [];
+  try { jobs = (await api("/api/jobs")).jobs; } catch { return; }
+  $("jobs").hidden = !jobs.length;
+  const active = jobs.filter(j => j.state === "running" || j.state === "queued").length;
+  $("jobs-title").textContent = "Conversions" + (active ? " – " + active + " running" : "");
+  fill($("jobs-list"), jobs.slice().reverse().map(j => {
+    const s = j.stats, running = j.state === "running" || j.state === "queued";
+    const pct = s.bytes_total ? Math.min(100, 100 * s.bytes_in / s.bytes_total) : 0;
+    return h("div", { class: "job" },
+      h("div", { class: "t" }, h("span", {}, (j.type || "All entities") + " → " + j.format.toUpperCase() + (j.limit ? " (max " + fmtN(j.limit) + ")" : "")),
+        h("span", { class: "s-" + j.state }, j.phase)),
+      running && h("div", { class: "p" }, h("i", { style: "width:" + pct.toFixed(1) + "%" })),
+      h("div", { class: "muted small" }, fmtN(s.items) + " items · " + fmtN(s.pages) + " pages · " + fmtN(s.lines) + " quads · read " + fmtBytes(s.bytes_in) + (s.bytes_total ? " of " + fmtBytes(s.bytes_total) : "") + " · " + j.elapsed + "s"
+        + (j.columns ? " · " + j.columns + " columns" : "") + (s.dupes ? " · " + fmtN(s.dupes) + " duplicates skipped" : "") + (s.bad_lines ? " · " + fmtN(s.bad_lines) + " unparsable lines" : "")),
+      j.error && h("div", { class: "s-error small" }, j.error),
+      j.state === "done" && !s.items && h("div", { class: "s-cancelled small" }, "No entities of type “" + j.type + "” were found. Try another entity type, or leave it empty."),
+      (j.outputs.length ? j.outputs : running ? [j.out] : []).map(p => h("div", { class: "actions" }, h("span", { class: "path grow" }, p),
+        j.state === "done" && h("button", { class: "btn", onclick: () => api("/api/reveal", { id: j.id, path: p }).catch(e => alert(e.message)) }, "Show in folder"))),
+      running && h("div", {}, h("button", { class: "btn", onclick: () => api("/api/cancel", { id: j.id }).then(pollJobs) }, "Cancel")));
+  }));
+  if (active) pollTimer = setTimeout(pollJobs, 700);
+}
+
+// --------------------------------------------------------------------- boot
+async function boot(refresh) {
+  if (location.protocol === "file:" || TOKEN.startsWith("__WDC")) {
+    fill($("years"));
+    fill(main, h("div", { class: "state" }, h("p", {}, "This page needs its small local server (it downloads and converts the files on your machine)."),
+      h("p", {}, "Run ", h("code", {}, "python3 wdc_browser.py"), " next to this file – it opens the page for you.")));
+    return;
+  }
+  try {
+    state("Checking webdatacommons.org for releases…");
+    const [y, d] = await Promise.all([api("/api/years" + (refresh ? "?refresh=1" : "")), api("/api/defaults")]);
+    if (refresh) for (const k in subsetCache) delete subsetCache[k];
+    YEARS = y.years; DEFAULTS = d;
+    route(); pollJobs();
+  } catch (e) { fill($("years"), h("button", { class: "pill", onclick: () => boot(true) }, "Retry")); state(e.message, true); }
+}
+addEventListener("hashchange", route);
+boot(false);
+</script>
+</body>
+</html>
